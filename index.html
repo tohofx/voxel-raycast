@@ -9,13 +9,11 @@
         <h1>3D Voxel Ray Casting</h1>
         <canvas id="output_canvas" width="800" height="450"></canvas>
         <script src="src/app.js" type="module"></script>
-        <p>The canvas on this page shows a voxel grid rendered in real time using ray casting</p>
+        <p>The canvas on this page shows a voxel grid rendered in real time using ray casting.</p>
         <p>This implementation uses a digital differential analyzer to traverse the grid.</p>
-        <p>Since the rays are currently simulated on the CPU the resolution is at 160 by 90 rays.</p>
         <p>The camera can be moved with W, A, S, D, while yaw and pitch can be changed with the arrow keys.</p>
+        <p>Currently the rays are simulated inside the fragment shader and the voxel data is hardcoded.</p>
         <p>
-            To improve performance the ray casting will be moved to the GPU to leverage its parallel computing capabilities.
-            <br/>
             There will also be a migration to WebGPU once the WebGL2 prototype works to make use of the features coming with the new API.
         </p>
     </body>

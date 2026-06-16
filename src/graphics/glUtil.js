@@ -10,7 +10,7 @@ let gl;
 const getGLContext = (canvas) => {
     gl = canvas.getContext('webgl2');
     return gl;
-}
+};
 
 /**
  * 
@@ -27,7 +27,7 @@ const createShader = (src, type) => {
     }
 
     return shader;
-}
+};
 
 /**
  * 
@@ -45,7 +45,7 @@ const createProgram = (vs, fs) => {
     }
 
     return program;
-}
+};
 
 const createArrayBuffer = (data, attributes, usage = WebGL2RenderingContext.STATIC_DRAW) => {
     const vbo = gl.createBuffer();
@@ -55,7 +55,14 @@ const createArrayBuffer = (data, attributes, usage = WebGL2RenderingContext.STAT
         gl.vertexAttribPointer(attrib.index, attrib.size, attrib.type, attrib.normalized, attrib.stride, attrib.offset);
     });
     return vbo;
-}
+};
+
+const createElementBuffer = (data, usage = WebGL2RenderingContext.STATIC_DRAW) => {
+    const ebo = gl.createBuffer();
+    gl.bindBuffer(WebGL2RenderingContext.ELEMENT_ARRAY_BUFFER, ebo);
+    gl.bufferData(WebGL2RenderingContext.ELEMENT_ARRAY_BUFFER, data, usage);
+    return ebo;
+};
 
 
 export default {
@@ -63,4 +70,5 @@ export default {
     createShader,
     createProgram,
     createArrayBuffer,
-}
+    createElementBuffer,
+};

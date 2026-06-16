@@ -7,99 +7,14 @@ import GLUtil from './graphics/glUtil.js';
 
 import RayCaster from './raycast.js';
 
-const level_3d = {
-    size: [5, 5, 5],
-    data: [
-        1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1,
-        1, 1, 1, 1, 1,
-
-        0, 0, 0, 0, 0,
-        0, 1, 1, 1, 0,
-        0, 1, 1, 1, 0,
-        0, 1, 1, 1, 0,
-        0, 0, 0, 0, 0,
-
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-        0, 0, 1, 0, 0,
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0,
-    ]
-};
-
-const shader_source = {
-    vertex: `#version 300 es
-        layout (location = 0) in vec2 in_Position;
-
-        layout (location = 1) in vec2 in_Offset;
-        layout (location = 2) in vec3 in_WorldPosition;
-        layout (location = 3) in vec2 in_UV;
-        layout (location = 4) in vec3 in_Normal;
-
-        out vec3 vf_Position;
-        out vec2 vf_UV;
-        out vec3 vf_Normal;
-
-        void main() {
-            vf_UV = in_UV;
-            vf_Normal = in_Normal;
-            vf_Position = in_WorldPosition;
-            gl_Position = vec4(in_Position + in_Offset, 0.0, 1.0);
-        }`,
-
-    fragment: `#version 300 es
-        precision highp float;
-
-        in vec2 vf_UV;
-        in vec3 vf_Normal;
-        in vec3 vf_Position;
-
-        out vec4 out_Color;
-
-        uniform sampler2D u_Texture;
-        uniform vec3 u_CameraPosition;
-        uniform vec3 u_LightPosition;
-
-        void main() {
-
-            float distance = length(vf_Position - u_CameraPosition);
-
-            vec3 toLight = u_LightPosition - vf_Position;
-            float diff = max(0., dot(normalize(toLight), vf_Normal));
-
-            float brightness = 0.2 + 0.8 * diff;
-
-            vec3 texSample = texture(u_Texture, vec2(vf_UV.x, vf_UV.y)).rgb;
-            vec3 normalColor = (vf_Normal + 1.) * 0.5;
-            vec3 color = brightness * texSample * normalColor;
-            color *= (1. - smoothstep(9., 13., distance));
-            out_Color = vec4(color, 1.0);
-        }`
-};
-
 const camera = {
     near: 0.1,
     far: 15.0,
     fov: MathUtil.deg2rad(70),
     aspect: 16. / 9.,
-    yaw: MathUtil.deg2rad(45),
-    pitch: MathUtil.deg2rad(-35),
-    position: [-4, 8, -4],
+    yaw: MathUtil.deg2rad(225),
+    pitch: MathUtil.deg2rad(-30),
+    position: [10, 8, 10],
     resolution: [160, 90]
 };
 
@@ -124,69 +39,21 @@ const generateCheckerTexture = (width, height, cw, ch) => {
     return imgData;
 }
 
-const RAY_COUNT = camera.resolution[0] * camera.resolution[1];
-const rays_3d = new Array(RAY_COUNT).fill({ start: [0, 0, 0], end: [0, 0, 0] });
-const quad_size = [2 / camera.resolution[0], 2 / camera.resolution[1]];
-const quads = {
-    buffers: [
-        {
-            data: new Float32Array([
-                0.0,            0.0,
-                quad_size[0],   0.0,
-                quad_size[0],   quad_size[1],
-                0.0,            quad_size[1]
-            ]),
-            attributes: [
-                { index: 0, size: 2, type: WebGL2RenderingContext.FLOAT, normalized: false, stride: 8, offset: 0 }
-            ],
-            usage: WebGL2RenderingContext.STATIC_DRAW
-        },
-        {
-            data: new Float32Array(new Array(rays_3d.length).fill(0).map((current, idx) => {
-                const x = idx % camera.resolution[0];
-                const y = Math.floor(idx / camera.resolution[0]);
-
-                const min = [
-                    -1 + x * quad_size[0],
-                    1 - (y + 1) * quad_size[1]
-                ];
-
-                return [min[0], min[1]];
-            }).flat()),
-            attributes: [
-                { index: 1, size: 2, type: WebGL2RenderingContext.FLOAT, normalized: false, stride: 8, offset: 0 }
-            ],
-            usage: WebGL2RenderingContext.STATIC_DRAW,
-            instanced: { divisor: 1 }
-        },
-        {
-            data: new Float32Array(new Array(rays_3d.length).fill(0).map(() => [0, 0, 0,    0, 0,   0, 0, 0]).flat()),
-            attributes: [
-                { index: 2, size: 3, type: WebGL2RenderingContext.FLOAT, normalized: false, stride: 32, offset: 0 },
-                { index: 3, size: 2, type: WebGL2RenderingContext.FLOAT, normalized: false, stride: 32, offset: 12 },
-                { index: 4, size: 3, type: WebGL2RenderingContext.FLOAT, normalized: false, stride: 32, offset: 20 },
-            ],
-            usage: WebGL2RenderingContext.DYNAMIC_DRAW,
-            instanced: { divisor: 1 }
-        }
-    ],
-    indices: new Uint32Array([0, 1, 2, 2, 3, 0]),
-};
 const quad_model = {
     vao: null,
     vbo: null,
     ebo: null,
+    indices: new Uint32Array([0, 1, 2, 2, 3, 0]),
 };
 
-let shaderProgram3D;
-
+let elementShader;
 let texture;
 
 const lightParams = {
     angle: 0,
-    speed: 1,
-    radius: 5.,
-    center: [2.5, 4., 2.5]
+    speed: 0.25,
+    radius: 6.,
+    center: [2.5, 6., 2.5]
 }
 
 /**
@@ -194,24 +61,219 @@ const lightParams = {
  * @param {WebGL2RenderingContext} gl 
  */
 const init = (gl) => {
-    shaderProgram3D = GLUtil.createProgram(
-        GLUtil.createShader(shader_source.vertex, WebGL2RenderingContext.VERTEX_SHADER), 
-        GLUtil.createShader(shader_source.fragment, WebGL2RenderingContext.FRAGMENT_SHADER)
+
+    elementShader = GLUtil.createProgram(
+        GLUtil.createShader(`#version 300 es
+            vec2 position[4] = vec2[](
+                vec2(-1.0, -1.0),
+                vec2( 1.0, -1.0),
+                vec2( 1.0,  1.0),
+                vec2(-1.0,  1.0)
+            );
+            layout (location = 0) in vec3 in_ScreenPosition;
+
+            out vec3 vf_ScreenPosition;
+
+            void main() {
+                vf_ScreenPosition = in_ScreenPosition;
+                gl_Position = vec4(position[gl_VertexID], 0.0, 1.0);
+            }`, WebGL2RenderingContext.VERTEX_SHADER),
+        GLUtil.createShader(`#version 300 es
+            precision highp float;
+            
+            ivec3 mapSize = ivec3(5, 5, 5);
+            int map[125] = int[](
+                1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1,
+
+                1, 1, 1, 1, 1,
+                1, 0, 0, 0, 0,
+                1, 0, 1, 1, 1,
+                1, 0, 1, 0, 1,
+                0, 0, 0, 0, 0,
+
+                1, 1, 1, 1, 1,
+                1, 0, 1, 1, 1,
+                1, 0, 1, 1, 1,
+                1, 0, 1, 0, 0,
+                0, 0, 0, 0, 0,
+
+                1, 1, 1, 1, 1,
+                1, 1, 1, 0, 0,
+                1, 1, 1, 0, 0,
+                1, 1, 1, 0, 0,
+                0, 0, 0, 0, 0,
+
+                1, 1, 1, 1, 1,
+                0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0
+            );
+
+            vec3 NORMAL[6] = vec3[](
+                vec3(-1.,  0.,  0.),
+                vec3( 1.,  0.,  0.),
+                vec3( 0., -1.,  0.),
+                vec3( 0.,  1.,  0.),
+                vec3( 0.,  0., -1.),
+                vec3( 0.,  0.,  1.)
+            );
+
+            in vec3 vf_Direction;
+            in vec3 vf_ScreenPosition;
+            
+            out vec4 out_Color;
+            
+            struct CastResult {
+                vec3 position;
+                vec3 normal;
+                vec2 uv;
+            };
+
+            vec2 calcUV(int normalIndex, vec3 position, vec3 voxel) {
+                switch(normalIndex) {
+                    case 0:   return vec2(position.z - voxel.z,         position.y - voxel.y);
+                    case 1:   return vec2(voxel.z + 1. - position.z,    position.y - voxel.y);
+                    case 2:   return vec2(voxel.z + 1. - position.z,    position.x - voxel.x);
+                    case 3:   return vec2(position.z - voxel.z,         position.x - voxel.x);
+                    case 4:   return vec2(voxel.x + 1. - position.x,    position.y - voxel.y);
+                    case 5:   return vec2(position.x - voxel.x,         position.y - voxel.y);
+                }
+                return vec2(0.0, 0.0);
+            }
+
+            CastResult castRay(vec3 start, vec3 direction) {
+
+                vec3 scalar = 1. / direction;
+            
+                vec3 step = vec3(
+                    length(direction * scalar.x),
+                    length(direction * scalar.y),
+                    length(direction * scalar.z)
+                );
+            
+                ivec3 voxel = ivec3(start);
+                ivec3 voxelStep = ivec3(
+                    direction.x < 0. ? -1 : 1,
+                    direction.y < 0. ? -1 : 1,
+                    direction.z < 0. ? -1 : 1
+                );
+            
+                ivec3 normalIndices = ivec3(
+                    direction.x < 0. ? 1 : 0,
+                    direction.y < 0. ? 3 : 2,
+                    direction.z < 0. ? 5 : 4
+                );
+            
+                vec3 initial = vec3(
+                    direction.x < 0. ? start.x - float(voxel.x) : float(voxel.x) + 1. - start.x,
+                    direction.y < 0. ? start.y - float(voxel.y) : float(voxel.y) + 1. - start.y,
+                    direction.z < 0. ? start.z - float(voxel.z) : float(voxel.z) + 1. - start.z
+                );
+            
+                vec3 distance = step * initial;
+            
+                float dist = 0.;
+                int normalIndex = -1;
+                for(float f = 0.; f < 1.; f += (1. / 30.)) {
+            
+                    if( voxel.x < 0     ||  voxel.y < 0     ||  voxel.z < 0     || 
+                        voxel.x >= mapSize.x    ||  voxel.y >= mapSize.y    ||  voxel.z >= mapSize.z    ) {
+                        //break;
+                    }
+                    else {
+                        int voxelIndex = voxel.x + voxel.z * mapSize.x + voxel.y * mapSize.x * mapSize.z;
+                        int voxelValue = map[voxelIndex];
+            
+                        if(voxelValue > 0) {
+                            break;
+                        }
+                    }
+            
+                    if (distance.x < distance.y) {
+                        if (distance.x < distance.z) {
+                            dist = distance.x;
+                            distance.x += step.x;
+                            voxel.x += voxelStep.x;
+                            normalIndex = normalIndices.x;
+                        }
+                        else {
+                            dist = distance.z;
+                            distance.z += step.z;
+                            voxel.z += voxelStep.z;
+                            normalIndex = normalIndices.z;
+                        }
+                    }
+                    else {
+                        if (distance.y < distance.z) {
+                            dist = distance.y;
+                            distance.y += step.y;
+                            voxel.y += voxelStep.y;
+                            normalIndex = normalIndices.y;
+                        }
+                        else {
+                            dist = distance.z;
+                            distance.z += step.z;
+                            voxel.z += voxelStep.z;
+                            normalIndex = normalIndices.z;
+                        }
+                    }
+                }
+            
+                vec3 position = start + dist * direction;
+                vec3 normal = normalIndex < 0 ? vec3(0.) : NORMAL[normalIndex];
+                vec2 uv = calcUV(normalIndex, position, vec3(voxel));
+
+                return CastResult(position, normal, uv);
+            }
+
+            uniform vec3 u_CameraPosition;
+            uniform vec3 u_LightPosition;
+            uniform sampler2D u_Texture;
+
+            void main() {
+                vec3 start = vf_ScreenPosition;
+                vec3 direction = normalize(vf_ScreenPosition - u_CameraPosition);
+                CastResult result = castRay(start, direction);
+                vec3 textureSample = texture(u_Texture, result.uv).rgb;
+
+                vec3 toEye = u_CameraPosition - result.position;
+                float eyeDistance = length(toEye);
+
+                vec3 lightSamplePoint = result.position + result.normal * 0.001;
+
+                vec3 ambient = vec3(0.2);
+                vec3 toLight = u_LightPosition - lightSamplePoint;
+                vec3 lightDir = normalize(toLight);
+                float lightDistance = length(toLight);
+
+                CastResult shadowCastResult = castRay(lightSamplePoint, lightDir);
+                float shadowCastDistance = length(shadowCastResult.position - lightSamplePoint); 
+
+                float diff = shadowCastDistance < lightDistance ? 0. : max(0., 5. * dot(result.normal, lightDir)) / lightDistance;
+
+
+                vec3 color = (ambient + (1. - ambient) * diff) * textureSample * (result.normal + 1.) * 0.5;
+
+                out_Color = vec4(color * (1. - smoothstep(12., 15., eyeDistance)), 1.0);
+            }`, WebGL2RenderingContext.FRAGMENT_SHADER)
     );
 
     quad_model.vao = gl.createVertexArray();
     gl.bindVertexArray(quad_model.vao);
-
-    quad_model.vbo = quads.buffers.map(buffer => {
-        const vbo = GLUtil.createArrayBuffer(buffer.data, buffer.attributes, buffer.usage);
-        if(buffer.instanced) {
-            buffer.attributes.forEach(attrib => gl.vertexAttribDivisor(attrib.index, buffer.instanced.divisor));
-        } 
-        return vbo;
-    });
-    quad_model.ebo = gl.createBuffer();
-    gl.bindBuffer(WebGL2RenderingContext.ELEMENT_ARRAY_BUFFER, quad_model.ebo);
-    gl.bufferData(WebGL2RenderingContext.ELEMENT_ARRAY_BUFFER, quads.indices, WebGL2RenderingContext.STATIC_DRAW);
+    quad_model.vbo = GLUtil.createArrayBuffer(new Float32Array([
+        0.0, 0.0, 0.0,
+        1.0, 0.0, 0.0,
+        1.0, 1.0, 0.0,
+        0.0, 1.0, 0.0
+    ]), [
+        { index: 0, size: 3, type: WebGL2RenderingContext.FLOAT, normalized: false, stride: 12, offset: 0 }
+    ], WebGL2RenderingContext.DYNAMIC_DRAW);
+    quad_model.ebo = GLUtil.createElementBuffer(quad_model.indices);
 
     texture = gl.createTexture();
     gl.bindTexture(WebGL2RenderingContext.TEXTURE_2D, texture);
@@ -286,30 +348,15 @@ const update = (delta, keys) => {
         camera.position[0] += move[0] * right[0] + move[1] * front[0];
         camera.position[1] += move[0] * right[1] + move[1] * front[1];
         camera.position[2] += move[0] * right[2] + move[1] * front[2];
-    }
 
-    const w = Math.tan(camera.fov * 0.5) * camera.near;
-    const h = w / camera.aspect;
-    
-    const center = Vec3.add(Vec3.clone(camera.position), Vec3.scale(front, camera.near));
-
-    for(let y = 0; y < camera.resolution[1]; y++) {
-        for(let x = 0; x < camera.resolution[0]; x++) {
-            const index = x + y * camera.resolution[0];
-            const p = Vec2.create(
-                (2 * x / (camera.resolution[0] - 1) - 1) * w, 
-                -(2 * y / (camera.resolution[1] - 1) - 1) * h
-            );
-            const start = Vec3.add(center, Vec3.add(Vec3.scale(right, p[0]), Vec3.scale(up, p[1])));
-            const direction = Vec3.normalize(Vec3.sub(start, camera.position));
-
-            rays_3d[index] = RayCaster.cast3D(start, direction, level_3d);
-        }
+        camera.position[0] = MathUtil.clamp(camera.position[0], 0., 10.);
+        camera.position[1] = MathUtil.clamp(camera.position[1], 0., 10.);
+        camera.position[2] = MathUtil.clamp(camera.position[2], 0., 10.);
     }
 };
 
 const prepareRendering = (gl) => {
-
+/*
     for(let y = 0; y < camera.resolution[1]; y++) {
         for(let x = 0; x < camera.resolution[0]; x++) {
             const idx = x + y * camera.resolution[0];
@@ -345,9 +392,28 @@ const prepareRendering = (gl) => {
                 ray.normal[0], ray.normal[1], ray.normal[2]
             ], s);
         }
-    }
-    gl.bindBuffer(WebGL2RenderingContext.ARRAY_BUFFER, quad_model.vbo[2]);
-    gl.bufferSubData(WebGL2RenderingContext.ARRAY_BUFFER, 0, quads.buffers[2].data);
+    }*/
+
+    const front = [
+        Math.sin(camera.yaw) * Math.cos(camera.pitch),
+        Math.sin(camera.pitch),
+        Math.cos(camera.yaw) * Math.cos(camera.pitch)
+    ];
+    const right = Vec3.normalize(Vec3.cross(front, [0, 1, 0]));
+    const up = Vec3.normalize(Vec3.cross(right, front));
+
+    const w = Math.tan(camera.fov * 0.5) * camera.near;
+    const h = w / camera.aspect;
+    
+    const center = Vec3.add(Vec3.clone(camera.position), Vec3.scale(front, camera.near));
+
+    gl.bindBuffer(WebGL2RenderingContext.ARRAY_BUFFER, quad_model.vbo);
+    gl.bufferSubData(WebGL2RenderingContext.ARRAY_BUFFER, 0, new Float32Array([
+        center[0] - right[0] * w - up[0] * h, center[1] - right[1] * w - up[1] * h, center[2] - right[2] * w - up[2] * h,
+        center[0] + right[0] * w - up[0] * h, center[1] + right[1] * w - up[1] * h, center[2] + right[2] * w - up[2] * h,
+        center[0] + right[0] * w + up[0] * h, center[1] + right[1] * w + up[1] * h, center[2] + right[2] * w + up[2] * h,
+        center[0] - right[0] * w + up[0] * h, center[1] - right[1] * w + up[1] * h, center[2] - right[2] * w + up[2] * h,
+    ]));
 };
 
 /**
@@ -356,33 +422,26 @@ const prepareRendering = (gl) => {
  */
 const render = (gl) => {
 
-    gl.useProgram(shaderProgram3D);
-
     const offset = Vec2.scale([
         Math.cos(lightParams.angle),
         Math.sin(lightParams.angle)
     ], lightParams.radius);
 
-    const lightPos = gl.getUniformLocation(shaderProgram3D, 'u_LightPosition');
-    gl.uniform3f(lightPos, lightParams.center[0] + offset[0], lightParams.center[1], lightParams.center[2] + offset[1]);
+    gl.useProgram(elementShader);
 
-    const cameraPos = gl.getUniformLocation(shaderProgram3D, 'u_CameraPosition');
+    const cameraPos = gl.getUniformLocation(elementShader, 'u_CameraPosition');
     gl.uniform3f(cameraPos, ...camera.position);
+
+    const lightPos = gl.getUniformLocation(elementShader, 'u_LightPosition');
+    gl.uniform3f(lightPos, lightParams.center[0] + offset[0], lightParams.center[1], lightParams.center[2] + offset[1]);
 
     gl.activeTexture(WebGL2RenderingContext.TEXTURE0);
     gl.bindTexture(WebGL2RenderingContext.TEXTURE_2D, texture);
 
     gl.bindVertexArray(quad_model.vao);
     gl.bindBuffer(WebGL2RenderingContext.ELEMENT_ARRAY_BUFFER, quad_model.ebo);
-    quads.buffers.forEach(buffer => buffer.attributes.forEach(attrib => gl.enableVertexAttribArray(attrib.index)));
-    gl.drawElements(WebGL2RenderingContext.TRIANGLES, quads.indices.length, WebGL2RenderingContext.UNSIGNED_INT, 0);
-    gl.drawElementsInstanced(
-        WebGL2RenderingContext.TRIANGLES, 
-        quads.indices.length, 
-        WebGL2RenderingContext.UNSIGNED_INT, 
-        0, 
-        RAY_COUNT
-    );
+    gl.enableVertexAttribArray(0);
+    gl.drawElements(WebGL2RenderingContext.TRIANGLES, quad_model.indices.length, WebGL2RenderingContext.UNSIGNED_INT, 0);
 };
 
 export default {
